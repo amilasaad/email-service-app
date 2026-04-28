@@ -7,5 +7,7 @@ pub struct Properties {
 
     pub smtp_host: String,
     pub smtp_user: String,
-    pub smtp_pass: String
+    pub smtp_pass: String,
+
+    pub db_url: String
 }
