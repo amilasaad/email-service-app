@@ -1,7 +1,11 @@
+use crate::implementations::load_configurations::load_configs;
+use crate::models::load_properties::Properties;
 use crate::models::user_model::{GetAllUsersByLimitParam, HtmlEmailRequest, UpdatePlanRequest};
 use crate::utils::api_key::generate_api_key;
 use crate::{
-    implementations::user_crud_service::{get_user, increment_usage_safe, get_all_users_with_limit},
+    implementations::user_crud_service::{
+        get_all_users_with_limit, get_user, increment_usage_safe,
+    },
     models::{
         deserializer::EmailRequest,
         user_model::{CreateUserRequest, UserDto},
@@ -10,7 +14,7 @@ use crate::{
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, delete, get, post, web};
 use lettre::message::{SinglePart, header::ContentType};
 use lettre::{Message, Transport};
-use log::{info};
+use log::info;
 use sqlx::PgPool;
 use std::fmt;
 use validator::{Validate, ValidationErrors};
@@ -209,17 +213,19 @@ pub async fn send_email_route(
         .validate()
         .map_err(AppValidationError::from_validator_err)?;
 
-    let email =
-        Message::builder()
-            .from(payload.from.parse().map_err(|e| {
-                AppValidationError::from_str(format!("Invalid sender address: {}", e))
-            })?)
-            .to(payload.to.parse().map_err(|e| {
-                AppValidationError::from_str(format!("Invalid recipient address: {}", e))
-            })?)
-            .subject(&payload.subject)
-            .body(payload.body.clone())
-            .map_err(|e| AppValidationError::from_str(format!("Malformed email fields: {}", e)))?;
+
+    let cfg: Properties = load_configs().expect("Failed to load configuration");
+    let email = Message::builder()
+        .from(cfg.smtp_user.clone().parse().unwrap())
+        .reply_to(payload.from.parse().map_err(|e| {
+            AppValidationError::from_str(format!("Invalid reply-to address: {}", e))
+        })?)
+        .to(payload.to.parse().map_err(|e| {
+            AppValidationError::from_str(format!("Invalid recipient address: {}", e))
+        })?)
+        .subject(&payload.subject)
+        .body(payload.body.clone())
+        .map_err(|e| AppValidationError::from_str(format!("Malformed email fields: {}", e)))?;
 
     match mailer.send(&email) {
         Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
