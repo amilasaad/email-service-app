@@ -70,13 +70,12 @@ pub async fn create_user_route(
 
     let result = sqlx::query(
         r#"
-        INSERT INTO email_user_tbl (id, username, password_hash, api_key, plan_limit, used_count)
+        INSERT INTO email_user_tbl (id, full_name, api_key, plan_limit, used_count)
         VALUES ($1, $2, $3, $4, $5, 0)
         "#,
     )
     .bind(id)
-    .bind(&body.username)
-    .bind(&body.password_hash)
+    .bind(&body.full_name)
     .bind(&api_key)
     .bind(body.plan_limit)
     .execute(pool.get_ref())
@@ -112,7 +111,7 @@ pub async fn get_user_route(
 
     let user = sqlx::query_as::<_, UserDto>(
         r#"
-        SELECT username, plan_limit, used_count
+        SELECT full_name, plan_limit, used_count
         FROM email_user_tbl
         WHERE api_key = $1
         "#,
@@ -145,7 +144,7 @@ pub async fn update_plan_route(
         UPDATE email_user_tbl
         SET plan_limit = $1
         WHERE api_key = $2
-        RETURNING username, plan_limit, used_count
+        RETURNING full_name, plan_limit, used_count
         "#,
     )
     .bind(body.plan_limit)

@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, FromRow, Serialize)]
 pub struct UserDao {
     pub id: Uuid,
-    pub username: String,
-    pub password_hash: String,
+    pub full_name: String,
     pub api_key: String,
     pub plan_limit: i64,
     pub used_count: i64,
@@ -16,14 +15,13 @@ pub struct UserDao {
 
 #[derive(Deserialize)]
 pub struct CreateUserRequest {
-    pub username: String,
-    pub password_hash: String,
-    pub plan_limit: i64,
+    pub full_name: String,
+    pub plan_limit: i64
 }
 
 #[derive(Debug, serde::Serialize, FromRow)]
 pub struct UserDto {
-    pub username: Option<String>,
+    pub full_name: Option<String>,
     pub plan_limit: i64,
     pub used_count: i64
 }
