@@ -75,7 +75,7 @@ pub async fn create_user_route(
     let result = sqlx::query(
         r#"
         INSERT INTO email_user_tbl (id, full_name, api_key, plan_limit, used_count)
-        VALUES ($1, $2, $3, $4, $5, 0)
+        VALUES ($1, $2, $3, $4, 0)
         "#,
     )
     .bind(id)
