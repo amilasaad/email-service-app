@@ -56,6 +56,7 @@ impl AppValidationError {
 #[get("/health-check")]
 pub async fn health_check_route() -> impl Responder {
     info!("health_check_route called");
+    println!("health_check_route called");
 
     HttpResponse::Ok()
         .content_type("application/json")
@@ -68,6 +69,7 @@ pub async fn create_user_route(
     body: web::Json<CreateUserRequest>,
 ) -> HttpResponse {
     info!("create_user_route called");
+    println!("create_user_route called");
 
     let id = uuid::Uuid::new_v4();
     let api_key = format!("{}{}", generate_api_key(), id);
@@ -100,6 +102,7 @@ pub async fn get_all_users_with_limit_route(
     query: web::Query<GetAllUsersByLimitParam>,
 ) -> Result<HttpResponse, AppValidationError> {
     info!("get_all_users_with_limit_route called");
+    println!("get_all_users_with_limit_route called");
     match get_all_users_with_limit(pool.get_ref(), &query.limit).await {
         Ok(d) => Ok(HttpResponse::Ok().json(d)),
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
@@ -111,6 +114,8 @@ pub async fn get_user_route(
     req: HttpRequest,
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, AppValidationError> {
+    info!("get_user_route called");
+    println!("get_user_route called");
     let api_key = extract_api_key(&req)?;
 
     let user = sqlx::query_as::<_, UserDto>(
@@ -136,6 +141,8 @@ pub async fn update_plan_route(
     pool: web::Data<PgPool>,
     body: web::Json<UpdatePlanRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
+    info!("update_plan_route called");
+    println!("update_plan_route called");
     let api_key = req
         .headers()
         .get("x-api-key")
@@ -168,6 +175,9 @@ pub async fn update_plan_route(
 
 #[delete("/users/{id}")]
 pub async fn delete_user_route(pool: web::Data<PgPool>, id: web::Path<uuid::Uuid>) -> HttpResponse {
+
+    info!("delete_user_route called");
+    println!("delete_user_route called");
     let result = sqlx::query(r#"DELETE FROM email_user_tbl WHERE id = $1"#)
         .bind(id.into_inner())
         .execute(pool.get_ref())
@@ -186,6 +196,8 @@ pub async fn send_email_route(
     mailer: web::Data<lettre::SmtpTransport>,
     payload: web::Json<EmailRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
+    info!("send_email_route called");
+    println!("send_email_route called");
     let api_key = extract_api_key(&req)?;
 
     let _user = match get_user(pool.get_ref(), &api_key).await {
@@ -243,6 +255,8 @@ pub async fn send_email_html_route(
     mailer: web::Data<lettre::SmtpTransport>,
     payload: web::Json<HtmlEmailRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
+    info!("send_email_html_route called");
+    println!("send_email_html_route called");
     let api_key = extract_api_key(&req)?;
 
     let _user = match get_user(pool.get_ref(), &api_key).await {

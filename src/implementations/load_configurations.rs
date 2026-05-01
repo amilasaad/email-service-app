@@ -13,7 +13,8 @@ pub fn load_configs() -> Result<Properties, std::env::VarError> {
         smtp_user: std::env::var("APP_SMTP_USER")?,
         smtp_pass: std::env::var("APP_SMTP_PASS")?,
         
-        db_url: std::env::var("APP_DATABASE_URL")?
+        db_url: std::env::var("APP_DATABASE_URL")?,
+        self_check_url: std::env::var("APP_SELF_CHECK_URL")?
     };
 
     Ok(cfg)

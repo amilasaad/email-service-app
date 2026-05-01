@@ -9,5 +9,6 @@ pub struct Properties {
     pub smtp_user: String,
     pub smtp_pass: String,
 
-    pub db_url: String
+    pub db_url: String,
+    pub self_check_url: String
 }

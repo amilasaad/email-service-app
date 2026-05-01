@@ -8,7 +8,8 @@ use std::sync::Arc;
 use configurations::db_configurations::connect_db;
 use configurations::email_config::build_mailer;
 use implementations::load_configurations::load_configs;
-
+use log::info;
+use std::time::Duration;
 use crate::models::load_properties::Properties;
 
 #[tokio::main]
@@ -18,7 +19,8 @@ async fn main() -> std::io::Result<()> {
     let cfg: Properties = load_configs()
         .expect("Failed to load configuration");
 
-    log::info!("Configuration loaded: {:?}", cfg.host);
+    info!("Configuration loaded: {:?}", cfg.host);
+    println!("Configuration loaded: {:?}", cfg.host);
 
     let mailer = build_mailer(cfg.clone());
 
@@ -30,6 +32,25 @@ async fn main() -> std::io::Result<()> {
 
     let host = cfg_data.get_ref().host.clone();
     let port = cfg_data.get_ref().port;
+    let self_check_url = cfg_data.get_ref().self_check_url.clone();
+
+    tokio::spawn(async move {
+        let client = reqwest::Client::new();
+
+        loop {
+            match client
+                .get(&self_check_url)
+                .send()
+                .await
+            {
+                Ok(_) => println!("Ping success"),
+                Err(e) => println!("Ping failed: {:?}", e)
+            }
+
+            tokio::time::sleep(Duration::from_secs(120)).await;
+        }
+    });
+
 
     HttpServer::new(move || {
         App::new()
