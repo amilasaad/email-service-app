@@ -69,7 +69,8 @@ pub async fn create_user_route(
     body: web::Json<CreateUserRequest>,
 ) -> HttpResponse {
     info!("create_user_route called");
-    println!("create_user_route called");
+    info!("inbound_payload: {:?}", serde_json::to_string(&body)
+    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
 
     let id = uuid::Uuid::new_v4();
     let api_key = format!("{}{}", generate_api_key(), id);
@@ -142,7 +143,8 @@ pub async fn update_plan_route(
     body: web::Json<UpdatePlanRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
     info!("update_plan_route called");
-    println!("update_plan_route called");
+    info!("inbound_payload: {:?}", serde_json::to_string(&body)
+    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
     let api_key = req
         .headers()
         .get("x-api-key")
@@ -196,8 +198,9 @@ pub async fn send_email_route(
     mailer: web::Data<lettre::SmtpTransport>,
     payload: web::Json<EmailRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
-    info!("send_email_route called");
-    println!("send_email_route called");
+    info!("send_email_text_route called");
+    info!("inbound_payload: {:?}", serde_json::to_string(&payload)
+    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
     let api_key = extract_api_key(&req)?;
 
     let _user = match get_user(pool.get_ref(), &api_key).await {
@@ -256,7 +259,8 @@ pub async fn send_email_html_route(
     payload: web::Json<HtmlEmailRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
     info!("send_email_html_route called");
-    println!("send_email_html_route called");
+    info!("inbound_payload: {:?}", serde_json::to_string(&payload)
+    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
     let api_key = extract_api_key(&req)?;
 
     let _user = match get_user(pool.get_ref(), &api_key).await {

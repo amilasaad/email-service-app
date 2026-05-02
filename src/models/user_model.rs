@@ -13,7 +13,7 @@ pub struct UserDao {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct CreateUserRequest {
     pub full_name: String,
     pub plan_limit: i64
@@ -26,12 +26,12 @@ pub struct UserDto {
     pub used_count: i64
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct UpdatePlanRequest {
     pub plan_limit: i32,
 }
 
-#[derive(Deserialize, validator::Validate)]
+#[derive(Deserialize, Serialize, validator::Validate)]
 pub struct HtmlEmailRequest {
     #[validate(email)]
     pub from: String,

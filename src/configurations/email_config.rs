@@ -13,5 +13,6 @@ pub fn build_mailer(prop: Properties) -> SmtpTransport {
     SmtpTransport::relay(&smtp_host)
         .expect("Failed to create SMTP relay")
         .credentials(creds)
+        .port(465)
         .build()
 }
