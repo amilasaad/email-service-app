@@ -10,6 +10,7 @@ pub fn load_configs() -> Result<Properties, std::env::VarError> {
             .expect("APP_PORT must be a number"),
 
         smtp_host: std::env::var("APP_SMTP_HOST")?,
+        smtp_port: std::env::var("APP_SMTP_PORT")?,
         smtp_user: std::env::var("APP_SMTP_USER")?,
         smtp_pass: std::env::var("APP_SMTP_PASS")?,
         

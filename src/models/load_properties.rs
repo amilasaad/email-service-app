@@ -6,6 +6,7 @@ pub struct Properties {
     pub port: u16,
 
     pub smtp_host: String,
+    pub smtp_port: String,
     pub smtp_user: String,
     pub smtp_pass: String,
 
