@@ -4,11 +4,10 @@ use serde::Deserialize;
 pub struct Properties {
     pub host: String,
     pub port: u16,
-
-    pub smtp_host: String,
-    pub smtp_port: String,
-    pub smtp_user: String,
-    pub smtp_pass: String,
+    
+    pub resend_url: String,
+    pub resend_token: String,
+    pub resend_email: String,
 
     pub db_url: String,
     pub self_check_url: String

@@ -6,7 +6,6 @@ mod utils;
 
 use std::sync::Arc;
 use configurations::db_configurations::connect_db;
-use configurations::email_config::build_mailer;
 use implementations::load_configurations::load_configs;
 use log::info;
 use std::time::Duration;
@@ -21,8 +20,6 @@ async fn main() -> std::io::Result<()> {
 
     info!("Configuration loaded: {:?}", cfg.host);
     println!("Configuration loaded: {:?}", cfg.host);
-
-    let mailer = build_mailer(cfg.clone());
 
     let pool = connect_db(&cfg.db_url).await;
 
@@ -54,11 +51,9 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(mailer.clone()))
             .app_data(cfg_data.clone())
             .app_data(pool_data.clone())
 
-            .service(implementations::api_router::send_email_route)
             .service(implementations::api_router::health_check_route)
             .service(implementations::api_router::create_user_route)
             .service(implementations::api_router::get_user_route)

@@ -7,13 +7,10 @@ use crate::{
         get_all_users_with_limit, get_user, increment_usage_safe,
     },
     models::{
-        deserializer::EmailRequest,
         user_model::{CreateUserRequest, UserDto},
     },
 };
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, delete, get, post, web};
-use lettre::message::{SinglePart, header::ContentType};
-use lettre::{Message, Transport};
 use log::info;
 use sqlx::PgPool;
 use std::fmt;
@@ -190,77 +187,14 @@ pub async fn delete_user_route(pool: web::Data<PgPool>, id: web::Path<uuid::Uuid
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
-
-#[post("/send-email")]
-pub async fn send_email_route(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    mailer: web::Data<lettre::SmtpTransport>,
-    payload: web::Json<EmailRequest>,
-) -> Result<HttpResponse, AppValidationError> {
-    info!("send_email_text_route called");
-    info!("inbound_payload: {:?}", serde_json::to_string(&payload)
-    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
-    let api_key = extract_api_key(&req)?;
-
-    let _user = match get_user(pool.get_ref(), &api_key).await {
-        Ok(u) => u,
-        Err(_) => {
-            return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                "error": "User not found"
-            })));
-        }
-    };
-
-    let updated_user = match increment_usage_safe(pool.get_ref(), &api_key).await {
-        Ok(u) => u,
-        Err(sqlx::Error::RowNotFound) => {
-            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
-                "error": "User has reached the limit"
-            })));
-        }
-        Err(e) => {
-            return Ok(HttpResponse::InternalServerError().body(e.to_string()));
-        }
-    };
-
-    payload
-        .validate()
-        .map_err(AppValidationError::from_validator_err)?;
-
-
-    let cfg: Properties = load_configs().expect("Failed to load configuration");
-    let email = Message::builder()
-        .from(cfg.smtp_user.clone().parse().unwrap())
-        .reply_to(payload.from.parse().map_err(|e| {
-            AppValidationError::from_str(format!("Invalid reply-to address: {}", e))
-        })?)
-        .to(payload.to.parse().map_err(|e| {
-            AppValidationError::from_str(format!("Invalid recipient address: {}", e))
-        })?)
-        .subject(&payload.subject)
-        .body(payload.body.clone())
-        .map_err(|e| AppValidationError::from_str(format!("Malformed email fields: {}", e)))?;
-
-    match mailer.send(&email) {
-        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "status": "success",
-            "remaining_limit": updated_user.plan_limit - updated_user.used_count
-        }))),
-        Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
-    }
-}
-
 #[post("/send-email-html")]
 pub async fn send_email_html_route(
     req: HttpRequest,
     pool: web::Data<PgPool>,
-    mailer: web::Data<lettre::SmtpTransport>,
     payload: web::Json<HtmlEmailRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
     info!("send_email_html_route called");
-    info!("inbound_payload: {:?}", serde_json::to_string(&payload)
-    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
+
     let api_key = extract_api_key(&req)?;
 
     let _user = match get_user(pool.get_ref(), &api_key).await {
@@ -279,36 +213,43 @@ pub async fn send_email_html_route(
                 "error": "User has reached the limit"
             })));
         }
-        Err(e) => {
-            return Ok(HttpResponse::InternalServerError().body(e.to_string()));
-        }
+        Err(e) => return Ok(HttpResponse::InternalServerError().body(e.to_string())),
     };
 
     payload
         .validate()
         .map_err(AppValidationError::from_validator_err)?;
 
-    let email =
-        Message::builder()
-            .from(payload.from.parse().map_err(|e| {
-                AppValidationError::from_str(format!("Invalid sender address: {}", e))
-            })?)
-            .to(payload.to.parse().map_err(|e| {
-                AppValidationError::from_str(format!("Invalid recipient address: {}", e))
-            })?)
-            .subject(&payload.subject)
-            .singlepart(
-                SinglePart::builder()
-                    .header(ContentType::TEXT_HTML)
-                    .body(payload.html.clone()),
-            )
-            .map_err(|e| AppValidationError::from_str(format!("Malformed email: {}", e)))?;
+    let cfg: Properties = load_configs().expect("Failed to load configuration");
 
-    match mailer.send(&email) {
-        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "status": "success",
-            "remaining_limit": updated_user.plan_limit - updated_user.used_count
-        }))),
+    let client = reqwest::Client::new();
+
+    let body = serde_json::json!({
+        "from": cfg.resend_email,
+        "to": payload.to,
+        "subject": payload.subject,
+        "html": payload.html,
+        "reply_to": payload.from
+    });
+
+    let response = client
+        .post(cfg.resend_url)
+        .bearer_auth(cfg.resend_token)
+        .json(&body)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() => {
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "status": "success",
+                "remaining_limit": updated_user.plan_limit - updated_user.used_count
+            })))
+        }
+        Ok(resp) => {
+            let err_text = resp.text().await.unwrap_or_default();
+            Ok(HttpResponse::BadRequest().body(err_text))
+        }
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }
 }
