@@ -9,6 +9,7 @@ use configurations::db_configurations::connect_db;
 use implementations::load_configurations::load_configs;
 use log::info;
 use std::time::Duration;
+use actix_cors::Cors;
 use crate::models::load_properties::Properties;
 
 #[tokio::main]
@@ -50,7 +51,13 @@ async fn main() -> std::io::Result<()> {
 
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_header()
+            .allow_any_method();
+
         App::new()
+            .wrap(cors)
             .app_data(cfg_data.clone())
             .app_data(pool_data.clone())
 
