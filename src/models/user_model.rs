@@ -48,3 +48,15 @@ pub struct HtmlEmailRequest {
 pub struct GetAllUsersByLimitParam {
     pub limit: i64
 }
+
+#[derive(serde::Deserialize)]
+pub struct CheckPaymentIntentQuery {
+    pub payment_intent_id: String,
+    pub client_key: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct PayViaQrPhRequestPayload {
+    pub amount: i64,
+    pub currency: String
+}

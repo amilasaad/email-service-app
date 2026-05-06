@@ -1,4 +1,4 @@
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer, web::{self}};
 mod implementations;
 mod configurations;
 mod models;
@@ -68,6 +68,8 @@ async fn main() -> std::io::Result<()> {
             .service(implementations::api_router::update_plan_route)
             .service(implementations::api_router::send_email_html_route)
             .service(implementations::api_router::get_all_users_with_limit_route)
+            .service(implementations::api_router::create_qrph_payment)
+            .service(implementations::api_router::get_payment_intent_status)
     })
     .bind((host, port))?
     .run()

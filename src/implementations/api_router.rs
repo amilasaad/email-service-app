@@ -1,19 +1,20 @@
 use crate::implementations::load_configurations::load_configs;
 use crate::models::load_properties::Properties;
-use crate::models::user_model::{GetAllUsersByLimitParam, HtmlEmailRequest, UpdatePlanRequest};
+use crate::models::user_model::{
+    CheckPaymentIntentQuery, GetAllUsersByLimitParam, HtmlEmailRequest, PayViaQrPhRequestPayload,
+    UpdatePlanRequest,
+};
 use crate::utils::api_key::generate_api_key;
 use crate::{
     implementations::user_crud_service::{
         get_all_users_with_limit, get_user, increment_usage_safe,
     },
-    models::{
-        user_model::{CreateUserRequest, UserDto},
-    },
+    models::user_model::{CreateUserRequest, UserDto},
 };
-use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, delete, get, post, web};
+use actix_web::{delete, get, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
 use log::info;
 use sqlx::PgPool;
-use std::fmt;
+use std::fmt::{self};
 use validator::{Validate, ValidationErrors};
 
 #[derive(Debug)]
@@ -66,8 +67,10 @@ pub async fn create_user_route(
     body: web::Json<CreateUserRequest>,
 ) -> HttpResponse {
     info!("create_user_route called");
-    info!("inbound_payload: {:?}", serde_json::to_string(&body)
-    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
+    info!(
+        "inbound_payload: {:?}",
+        serde_json::to_string(&body).unwrap_or_else(|_| "Failed to serialize payload".to_string())
+    );
 
     let id = uuid::Uuid::new_v4();
     let api_key = format!("{}{}", generate_api_key(), id);
@@ -140,8 +143,10 @@ pub async fn update_plan_route(
     body: web::Json<UpdatePlanRequest>,
 ) -> Result<HttpResponse, AppValidationError> {
     info!("update_plan_route called");
-    info!("inbound_payload: {:?}", serde_json::to_string(&body)
-    .unwrap_or_else(|_| "Failed to serialize payload".to_string()));
+    info!(
+        "inbound_payload: {:?}",
+        serde_json::to_string(&body).unwrap_or_else(|_| "Failed to serialize payload".to_string())
+    );
     let api_key = req
         .headers()
         .get("x-api-key")
@@ -174,7 +179,6 @@ pub async fn update_plan_route(
 
 #[delete("/users/{id}")]
 pub async fn delete_user_route(pool: web::Data<PgPool>, id: web::Path<uuid::Uuid>) -> HttpResponse {
-
     info!("delete_user_route called");
     println!("delete_user_route called");
     let result = sqlx::query(r#"DELETE FROM email_user_tbl WHERE id = $1"#)
@@ -187,6 +191,153 @@ pub async fn delete_user_route(pool: web::Data<PgPool>, id: web::Path<uuid::Uuid
         Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
+
+#[post("/create-qrph")]
+pub async fn create_qrph_payment(
+    payload: web::Json<PayViaQrPhRequestPayload>,
+) -> Result<HttpResponse, AppValidationError> {
+    let client = reqwest::Client::new();
+    let cfg: Properties = load_configs().expect("Failed to load configurations");
+
+    info!("create_qrph_payment called");
+
+    let pm_res = client
+        .post(format!(
+            "{}{}",
+            &cfg.paymongo_url, &cfg.paymongo_create_payment_method
+        ))
+        .header("accept", "application/json")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Basic {}", cfg.paymongo_api_key))
+        .json(&serde_json::json!({
+            "data": {
+                "attributes": {
+                    "type": "qrph"
+                }
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let text = pm_res.text().await.unwrap();
+
+    let pm_json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let payment_method_id = pm_json["data"]["id"]
+        .as_str()
+        .ok_or_else(|| AppValidationError::from_str("Missing payment_method_id"))?;
+
+    let pi_res = client
+        .post(format!(
+            "{}{}",
+            &cfg.paymongo_url, &cfg.paymongo_create_payintents
+        ))
+        .header("accept", "application/json")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Basic {}", cfg.paymongo_api_key))
+        .json(&serde_json::json!({
+            "data": {
+                "attributes": {
+                    "amount": payload.amount,
+                    "payment_method_allowed": ["qrph"],
+                    "currency": payload.currency,
+                    "capture_type": "automatic"
+                }
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let pi_json: serde_json::Value = pi_res.json().await.unwrap();
+
+    let payment_intent_id = pi_json["data"]["id"]
+        .as_str()
+        .ok_or_else(|| AppValidationError::from_str("Missing payment_intent_id"))?;
+
+    let client_key = pi_json["data"]["attributes"]["client_key"]
+        .as_str()
+        .ok_or_else(|| AppValidationError::from_str("Missing client_key"))?;
+
+    let attach_url = format!(
+        "{}{}/{}/attach",
+        &cfg.paymongo_url, &cfg.paymongo_create_payintents, payment_intent_id
+    );
+
+    let attach_res = client
+        .post(&attach_url)
+        .header("accept", "application/json")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Basic {}", cfg.paymongo_api_key))
+        .json(&serde_json::json!({
+            "data": {
+                "attributes": {
+                    "payment_method": payment_method_id,
+                    "client_key": client_key
+                }
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let attach_json: serde_json::Value = attach_res.json().await.unwrap();
+
+    let qr_url = attach_json["data"]["attributes"]["next_action"]["code"]["image_url"]
+        .as_str()
+        .ok_or_else(|| AppValidationError::from_str("QR URL not found"))?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "qrph_image_url": qr_url,
+        "payment_intent_id": payment_intent_id,
+        "client_key": client_key
+    })))
+}
+
+#[get("/payment-intent/status")]
+pub async fn get_payment_intent_status(
+    query: web::Query<CheckPaymentIntentQuery>,
+) -> Result<HttpResponse, AppValidationError> {
+
+    info!("get_payment_intent_status called");
+
+    let cfg: Properties = load_configs().expect("Failed to configuration properties.");
+    let client = reqwest::Client::new();
+
+    let url = format!(
+        "{}{}/{}?client_key={}",
+        &cfg.paymongo_url,
+        &cfg.paymongo_create_payintents,
+        query.payment_intent_id,
+        query.client_key
+    );
+
+    let res = client
+        .get(&url)
+        .header("accept", "application/json")
+        .header("Authorization", format!("Basic {}", cfg.paymongo_api_key))
+        .send()
+        .await
+        .map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let json: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| AppValidationError::from_str(e.to_string()))?;
+
+    let status = json["data"]["attributes"]["status"]
+        .as_str()
+        .unwrap_or("unknown");
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "payment_intent_id": query.payment_intent_id,
+        "status": status,
+        "raw": json
+    })))
+}
+
 #[post("/send-email-html")]
 pub async fn send_email_html_route(
     req: HttpRequest,
@@ -240,12 +391,10 @@ pub async fn send_email_html_route(
         .await;
 
     match response {
-        Ok(resp) if resp.status().is_success() => {
-            Ok(HttpResponse::Ok().json(serde_json::json!({
-                "status": "success",
-                "remaining_limit": updated_user.plan_limit - updated_user.used_count
-            })))
-        }
+        Ok(resp) if resp.status().is_success() => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "status": "success",
+            "remaining_limit": updated_user.plan_limit - updated_user.used_count
+        }))),
         Ok(resp) => {
             let err_text = resp.text().await.unwrap_or_default();
             Ok(HttpResponse::BadRequest().body(err_text))
