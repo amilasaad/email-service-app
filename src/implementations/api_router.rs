@@ -376,7 +376,7 @@ pub async fn send_email_html_route(
     let client = reqwest::Client::new();
 
     let body = serde_json::json!({
-        "from": cfg.resend_email,
+        "from": format!("{}{}{}","ZentroMail <", cfg.resend_email,">"),
         "to": payload.to,
         "subject": payload.subject,
         "html": payload.html,

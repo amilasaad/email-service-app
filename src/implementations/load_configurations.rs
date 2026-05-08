@@ -19,7 +19,6 @@ pub fn load_configs() -> Result<Properties, std::env::VarError> {
         paymongo_url: std::env::var("PAYMONGO_URL")?,
         paymongo_create_payment_method: std::env::var("PAYMONGO_CREATE_PAYMENT")?,
         paymongo_create_payintents: std::env::var("PAYMONGO_CREATE_PAYINTENTS")?,
-        paymongo_create_qr: std::env::var("PAYMONGO_CREATE_QR")?, 
         paymongo_api_key: std::env::var("PAYMONGO_API_KEY")?    
     };
 

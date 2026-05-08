@@ -15,6 +15,5 @@ pub struct Properties {
     pub paymongo_url: String,
     pub paymongo_create_payment_method: String,
     pub paymongo_create_payintents: String,
-    pub paymongo_create_qr: String,
     pub paymongo_api_key:String
 }
