@@ -12,7 +12,7 @@ use crate::{
     models::user_model::{CreateUserRequest, UserDto},
 };
 use actix_web::{delete, get, post, web, HttpRequest, HttpResponse, Responder, ResponseError};
-use log::info;
+use log::{info, error};
 use sqlx::PgPool;
 use std::fmt::{self};
 use validator::{Validate, ValidationErrors};
@@ -300,7 +300,6 @@ pub async fn create_qrph_payment(
 pub async fn get_payment_intent_status(
     query: web::Query<CheckPaymentIntentQuery>,
 ) -> Result<HttpResponse, AppValidationError> {
-
     info!("get_payment_intent_status called");
 
     let cfg: Properties = load_configs().expect("Failed to configuration properties.");
@@ -399,7 +398,10 @@ pub async fn send_email_html_route(
             let err_text = resp.text().await.unwrap_or_default();
             Ok(HttpResponse::BadRequest().body(err_text))
         }
-        Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
+        Err(e) => {
+            error!("{} - {}", api_key, e.to_string());
+            Ok(HttpResponse::InternalServerError().body("Please contact technical support."))
+        }
     }
 }
 
